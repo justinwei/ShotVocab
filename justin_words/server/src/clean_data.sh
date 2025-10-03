@@ -1,0 +1,1 @@
+sqlite3 data/justin_words.db "DELETE FROM words; DELETE FROM word_metadata; DELETE FROM reviews; DELETE FROM review_log; DELETE FROM daily_stats; DELETE FROM users;"

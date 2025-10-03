@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>音频测试</title>
+</head>
+<body>
+    <h1>音频测试页面</h1>
+    
+    <h2>Hello (word-42)</h2>
+    <audio controls>
+        <source src="/uploads/audio/word-42-686c5d49fbfa16aa5a2be869f55abf2b2f6a900e.wav" type="audio/wav">
+    </audio>
+    <br><br>
+    
+    <h2>Christianity (word-21)</h2>
+    <audio controls>
+        <source src="/uploads/audio/word-21-bde290854a1bd7c3aff2da9d6f145aa98a9603e3.wav" type="audio/wav">
+    </audio>
+    <br><br>
+    
+    <h2>JavaScript播放测试</h2>
+    <button onclick="playHello()">播放 Hello</button>
+    <button onclick="playChristianity()">播放 Christianity</button>
+    
+    <script>
+        function playHello() {
+            const audio = new Audio('/uploads/audio/word-42-686c5d49fbfa16aa5a2be869f55abf2b2f6a900e.wav');
+            audio.play().catch(e => {
+                console.error('播放失败:', e);
+                alert('播放失败: ' + e.message);
+            });
+        }
+        
+        function playChristianity() {
+            const audio = new Audio('/uploads/audio/word-21-bde290854a1bd7c3aff2da9d6f145aa98a9603e3.wav');
+            audio.play().catch(e => {
+                console.error('播放失败:', e);
+                alert('播放失败: ' + e.message);
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+node_modules/
+.pnpm-store/
+.DS_Store
+.env
+server/.env.local
+client/.env.local
+uploads/
+data/
+dist/
+client/dist/
+server/dist/
+.vscode/
+.idea/
+
+server/.tap/
+server/*.log
