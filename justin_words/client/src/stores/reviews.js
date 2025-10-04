@@ -13,7 +13,8 @@ export const useReviewsStore = defineStore('reviews', {
     detailsVisible: false,
     chineseVisible: false,
     lastScheduling: null,
-    zhSupplement: null
+    zhSupplement: null,
+    history: []
   }),
 
   getters: {
@@ -39,6 +40,7 @@ export const useReviewsStore = defineStore('reviews', {
         this.chineseVisible = false;
         this.lastScheduling = null;
         this.zhSupplement = null;
+        this.history = [];
       } catch (error) {
         this.error = error.response?.data?.error || error.message;
       } finally {
@@ -63,12 +65,29 @@ export const useReviewsStore = defineStore('reviews', {
 
     advanceQueue() {
       if (!this.queue.length) return;
+      const current = this.currentReview;
+      if (current) {
+        this.history.push(current);
+      }
       this.queue.splice(this.activeIndex, 1);
       if (this.queue.length === 0) {
         this.activeIndex = 0;
       } else if (this.activeIndex >= this.queue.length) {
         this.activeIndex = this.queue.length - 1;
       }
+      this.resetDetails();
+    },
+
+    goBack() {
+      if (!this.history.length) return;
+      const previous = this.history.pop();
+      if (!previous) return;
+      const alreadyIndex = this.queue.findIndex((item) => item.reviewId === previous.reviewId);
+      if (alreadyIndex >= 0) {
+        this.queue.splice(alreadyIndex, 1);
+      }
+      this.queue.unshift(previous);
+      this.activeIndex = 0;
       this.resetDetails();
     },
 

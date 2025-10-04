@@ -79,7 +79,7 @@ export function fetchDueReviews({ userId, limit = 20, now = new Date() }) {
   `).all(userId, now.toISOString(), limit);
 }
 
-export function recordReviewResult({ reviewId, rating, now = new Date() }) {
+export function recordReviewResult({ reviewId, rating, userId, now = new Date() }) {
   const db = getDb();
   const row = db.prepare(`
     SELECT r.*, w.user_id AS userId
@@ -90,6 +90,10 @@ export function recordReviewResult({ reviewId, rating, now = new Date() }) {
 
   if (!row) {
     throw new Error(`Review ${reviewId} not found`);
+  }
+
+  if (userId && row.userId !== userId) {
+    throw new Error('Review not found');
   }
 
   const ratingKey = normalizeRating(rating);

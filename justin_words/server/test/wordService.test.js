@@ -12,13 +12,17 @@ function withTempEnv() {
     SQLITE_PATH: process.env.SQLITE_PATH,
     UPLOADS_DIR: process.env.UPLOADS_DIR,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-    GEMINI_FORCE_MOCK: process.env.GEMINI_FORCE_MOCK
+    GEMINI_FORCE_MOCK: process.env.GEMINI_FORCE_MOCK,
+    JWT_SECRET: process.env.JWT_SECRET,
+    AZURE_SPEECH_FORCE_MOCK: process.env.AZURE_SPEECH_FORCE_MOCK
   };
 
   process.env.SQLITE_PATH = path.join(tmpRoot, 'db.sqlite');
   process.env.UPLOADS_DIR = path.join(tmpRoot, 'uploads');
   process.env.GEMINI_API_KEY = '';
   process.env.GEMINI_FORCE_MOCK = '1';
+  process.env.JWT_SECRET = 'test-secret';
+  process.env.AZURE_SPEECH_FORCE_MOCK = '1';
 
   return {
     tmpRoot,
@@ -45,6 +49,16 @@ function withTempEnv() {
       } else {
         process.env.GEMINI_FORCE_MOCK = originalEnv.GEMINI_FORCE_MOCK;
       }
+      if (originalEnv.AZURE_SPEECH_FORCE_MOCK === undefined) {
+        delete process.env.AZURE_SPEECH_FORCE_MOCK;
+      } else {
+        process.env.AZURE_SPEECH_FORCE_MOCK = originalEnv.AZURE_SPEECH_FORCE_MOCK;
+      }
+      if (originalEnv.JWT_SECRET === undefined) {
+        delete process.env.JWT_SECRET;
+      } else {
+        process.env.JWT_SECRET = originalEnv.JWT_SECRET;
+      }
       try {
         fs.rmSync(path.dirname(dbFile), { recursive: true, force: true });
       } catch (_) {
@@ -62,11 +76,18 @@ t.test('ingestWordFromImage processes uploaded image end-to-end', async (t) => {
 
   const databaseModule = await import('../src/db/database.js');
   const { migrate, getDb } = databaseModule;
-  const { ensureDefaultUser } = await import('../src/services/userService.js');
-  const { ingestWordFromImage, listWordsWithMetadata } = await import('../src/services/wordService.js');
+  const { createUser } = await import('../src/services/userService.js');
+  const {
+    ingestImageForUser,
+    ingestWordsManually,
+    listWordsWithMetadata,
+    regenerateWordResources,
+    createImagePreview,
+    confirmImageImport
+  } = await import('../src/services/wordService.js');
 
   migrate();
-  const user = ensureDefaultUser();
+  const user = createUser({ email: 'test@example.com', password: 'secret123' });
 
   let buffer;
   if (fs.existsSync(fixturePath)) {
@@ -76,15 +97,21 @@ t.test('ingestWordFromImage processes uploaded image end-to-end', async (t) => {
     t.comment(`fixture image not found at ${fixturePath}, using placeholder buffer`);
   }
 
-  const result = await ingestWordFromImage({
+  const progressEvents = [];
+  const wordsFromImage = await ingestImageForUser({
+    userId: user.id,
     buffer,
     originalname: fixtureBasename,
-    mimetype: 'image/jpeg'
+    mimetype: 'image/jpeg',
+    onProgress: (payload) => progressEvents.push(payload)
   });
 
-  t.ok(Array.isArray(result.words), 'should return a list of words');
-  t.equal(result.words.length, 1, 'mock output yields single word');
-  const [word] = result.words;
+  t.ok(progressEvents.find((event) => event.type === 'ocr'), 'progress emits OCR event');
+  t.ok(progressEvents.find((event) => event.type === 'completed'), 'progress emits completion events');
+
+  t.ok(Array.isArray(wordsFromImage), 'should return a list of words');
+  t.equal(wordsFromImage.length, 1, 'mock output yields single word');
+  const [word] = wordsFromImage;
   t.equal(word.lemma, 'example', 'should use mock OCR lemma');
   t.equal(word.confidence, 0.42, 'should expose mock OCR confidence');
   t.ok(fs.existsSync(word.imagePath), 'based image file should be persisted');
@@ -117,6 +144,32 @@ t.test('ingestWordFromImage processes uploaded image end-to-end', async (t) => {
   t.equal(listed[0].lemma, 'example', 'list entry lemma matches');
   t.match(listed[0].enDefinition, /example/i, 'list entry has english definition');
   t.equal(listed[0].audioUrl, word.audioUrl, 'list entry exposes audio url');
+
+  const manualResult = await ingestWordsManually({ userId: user.id, lemmas: ['sample', 'sample', 'test'] });
+  t.equal(manualResult.length, 2, 'manual ingest handles duplicates and multi-word input');
+  const manualList = listWordsWithMetadata({ userId: user.id, limit: 10 });
+  t.ok(manualList.find((entry) => entry.lemma === 'sample'), 'manual word persisted');
+  t.ok(manualList.find((entry) => entry.lemma === 'test'), 'second manual word persisted');
+
+  const preview = await createImagePreview({
+    userId: user.id,
+    buffer,
+    originalname: fixtureBasename,
+    mimetype: 'image/jpeg'
+  });
+  t.ok(preview.uploadId, 'preview provides upload id');
+  t.ok(Array.isArray(preview.words) && preview.words.length, 'preview returns candidates');
+
+  const confirmed = await confirmImageImport({
+    uploadId: preview.uploadId,
+    userId: user.id,
+    lemmas: preview.words.map((item) => item.lemma)
+  });
+  t.equal(confirmed.length, preview.words.length, 'confirm imports selected words');
+
+  const regenerated = await regenerateWordResources({ userId: user.id, wordId: word.id });
+  t.equal(regenerated.id, word.id, 'regeneration returns the same word id');
+  t.equal(regenerated.lemma, word.lemma, 'regeneration keeps lemma');
 
   getDb().close();
 });

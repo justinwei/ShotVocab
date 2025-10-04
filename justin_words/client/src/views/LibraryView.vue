@@ -64,6 +64,16 @@
             <h5>中文例句</h5>
             <p>{{ word.zhExample || '暂无中文例句' }}</p>
           </div>
+          <div class="detail-actions">
+            <button
+              class="inline-action"
+              type="button"
+              @click.stop="() => regenerate(word)"
+              :disabled="words.regeneratingIds.includes(word.id)"
+            >
+              {{ words.regeneratingIds.includes(word.id) ? '重新生成中...' : '重新生成释义' }}
+            </button>
+          </div>
         </details>
       </li>
     </ul>
@@ -93,6 +103,15 @@ function refresh() {
   words.fetchAllWords().catch((error) => {
     console.error(error);
   });
+}
+
+function regenerate(word) {
+  if (!word?.id) return;
+  words
+    .regenerateWord(word.id)
+    .catch((error) => {
+      console.error(error);
+    });
 }
 
 function formatDate(value) {
@@ -246,6 +265,26 @@ function fallbackSpeech(text) {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.inline-action {
+  background: #f1f5f9;
+  border: 1px solid #cbd5f5;
+  border-radius: 999px;
+  padding: 0.25rem 0.9rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.inline-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.detail-actions {
+  margin-top: 0.75rem;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .created-at {

@@ -8,6 +8,8 @@
     "start": "NODE_ENV=production node src/index.js",
     "lint": "eslint \"src/**/*.js\"",
     "migrate": "node src/db/run-migrations.js",
+    "clear-db": "node scripts/clear-database.js",
+    "clear-db:fast": "node scripts/clear-database-fast.js",
     "test": "TAP_DISABLE_COVERAGE=1 tap"
   },
   "dependencies": {

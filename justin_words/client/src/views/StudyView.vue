@@ -54,7 +54,12 @@
         <button v-else class="primary" type="button" @click="showChinese" :disabled="!reviews.zhSupplement">
           中文
         </button>
-        <button class="ghost" type="button" @click="nextCard">下一词</button>
+        <div class="nav-buttons">
+          <button class="ghost" type="button" @click="prevCard" :disabled="!reviews.history.length">
+            上一词
+          </button>
+          <button class="ghost" type="button" @click="nextCard">下一词</button>
+        </div>
       </div>
 
       <div v-else class="actions">
@@ -104,6 +109,10 @@ async function rate(label) {
   if (label !== '生词' && reviews.isEmpty) {
     reviews.fetchReviews();
   }
+}
+
+function prevCard() {
+  reviews.goBack();
 }
 
 function nextCard() {
@@ -370,6 +379,15 @@ button:disabled {
   background: transparent;
   color: #1e293b;
   border: 1px solid #cbd5f5;
+}
+
+.nav-buttons {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.nav-buttons .ghost {
+  flex: 1;
 }
 
 .details h3 {

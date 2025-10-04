@@ -143,7 +143,7 @@ async function generateJson({ contents, fallback }) {
 
 export async function extractWordFromImage({ buffer, filename, mimetype } = {}) {
   ensureCacheDir();
-  const key = cacheKey('ocr', buffer.toString('base64').slice(0, 128));
+  const key = cacheKey('ocr', buffer);
   const cached = readCache(key);
   if (cached) return cached;
 
@@ -213,10 +213,10 @@ export async function extractWordFromImage({ buffer, filename, mimetype } = {}) 
   return result;
 }
 
-export async function getEnglishMetadata(word) {
+export async function getEnglishMetadata(word, { force = false } = {}) {
   ensureCacheDir();
   const key = cacheKey('en-meta', word.toLowerCase());
-  const cached = readCache(key);
+  const cached = force ? null : readCache(key);
   if (cached) return cached;
 
   const fallback = () => MOCK_EN_METADATA(word);
@@ -250,11 +250,11 @@ export async function getEnglishMetadata(word) {
   return result;
 }
 
-export async function getChineseSupplement(word, englishMeta) {
+export async function getChineseSupplement(word, englishMeta, { force = false } = {}) {
   ensureCacheDir();
   const payload = `${word}:${englishMeta.definition}:${englishMeta.example}`;
   const key = cacheKey('zh-meta', payload);
-  const cached = readCache(key);
+  const cached = force ? null : readCache(key);
   if (cached) return cached;
 
   const fallback = () => MOCK_ZH_METADATA(word);
@@ -289,5 +289,3 @@ export async function getChineseSupplement(word, englishMeta) {
   writeCache(key, result);
   return result;
 }
-
-

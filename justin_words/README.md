@@ -21,8 +21,17 @@ npm run dev
 
 ## 环境配置
 
-- 复制 `server/.env.example` 为 `.env`，填写 `GEMINI_API_KEY` 与 `GEMINI_MODEL`。
+- 复制 `server/.env.example` 为 `.env.local`，并配置 Gemini API Key。
+- 必需变量：`GEMINI_API_KEY`（默认模型 `gemini-2.5-flash`，可通过 `GEMINI_MODEL` 覆盖）。
 - 首次启动时会在 `./data/justin_words.db` 创建 SQLite 数据库，并在 `./uploads` 存储原始图片与缓存。
+
+### 示例配置（.env.local）
+
+```bash
+# Gemini 配置示例
+GEMINI_API_KEY=your_gemini_api_key_here
+# GEMINI_MODEL=gemini-2.5-flash
+```
 
 ## 核心目录
 

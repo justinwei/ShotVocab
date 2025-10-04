@@ -4,14 +4,14 @@ import cors from 'cors';
 import path from 'node:path';
 import { config, paths } from './config.js';
 import { migrate } from './db/database.js';
-import { ensureDefaultUser } from './services/userService.js';
+import authRouter from './routes/auth.js';
+import { attachUser, requireAuth } from './middleware/authMiddleware.js';
 import wordsRouter from './routes/words.js';
 import reviewsRouter from './routes/reviews.js';
 import statsRouter from './routes/stats.js';
 
 async function bootstrap() {
   migrate();
-  ensureDefaultUser();
 
   if (!fs.existsSync(config.uploadsDir)) {
     fs.mkdirSync(config.uploadsDir, { recursive: true });
@@ -22,14 +22,21 @@ async function bootstrap() {
   app.use(express.json({ limit: '5mb' }));
   app.use(express.urlencoded({ extended: true }));
 
+  app.use(attachUser);
+
+  if (config.auth.jwtSecret === 'insecure-development-secret') {
+    console.warn('[bootstrap] JWT_SECRET not set; using insecure development secret. Configure JWT_SECRET for production.');
+  }
+
   app.get('/health', (req, res) => {
     res.json({ status: 'ok', version: '0.1.0' });
   });
 
   app.use('/uploads', express.static(config.uploadsDir));
-  app.use('/api/words', wordsRouter);
-  app.use('/api/reviews', reviewsRouter);
-  app.use('/api/stats', statsRouter);
+  app.use('/api/auth', authRouter);
+  app.use('/api/words', requireAuth, wordsRouter);
+  app.use('/api/reviews', requireAuth, reviewsRouter);
+  app.use('/api/stats', requireAuth, statsRouter);
 
   app.use((req, res) => {
     res.status(404).json({ error: 'Not Found' });
