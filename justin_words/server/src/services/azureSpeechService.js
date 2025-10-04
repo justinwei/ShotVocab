@@ -61,15 +61,23 @@ export async function synthesizeSpeech({ text, voice, cachePrefix = 'tts' }) {
   const hash = crypto.createHash('sha1').update(`${cachePrefix}:${voiceName}:${trimmed}`).digest('hex');
   const filename = `${cachePrefix}-${hash}.mp3`;
   const targetPath = path.join(audioDir, filename);
+  const fallbackPath = targetPath.replace(/\.mp3$/, '.wav');
   
   if (fs.existsSync(targetPath)) {
+    console.info('[azureSpeechService] cache hit (mp3)', { cachePrefix, targetPath });
     return targetPath;
+  }
+
+  if (fs.existsSync(fallbackPath)) {
+    console.info('[azureSpeechService] cache hit (fallback wav)', { cachePrefix, fallbackPath });
+    return fallbackPath;
   }
 
   const writeFallback = () => {
     const silent = createSilentWav();
-    fs.writeFileSync(targetPath.replace('.mp3', '.wav'), silent);
-    return targetPath.replace('.mp3', '.wav');
+    fs.writeFileSync(fallbackPath, silent);
+    console.info('[azureSpeechService] wrote fallback audio', { cachePrefix, fallbackPath });
+    return fallbackPath;
   };
 
   if (shouldUseMock()) {
@@ -83,8 +91,9 @@ export async function synthesizeSpeech({ text, voice, cachePrefix = 'tts' }) {
       console.log(`[azureSpeechService] Skipping TTS for simple word: "${trimmed}", will use browser fallback`);
       // 返回一个很小的静默文件，让前端fallback到浏览器语音
       const tinyWav = createSilentWav(100); // 0.1秒静默
-      fs.writeFileSync(targetPath, tinyWav);
-      return targetPath;
+      fs.writeFileSync(fallbackPath, tinyWav);
+      console.info('[azureSpeechService] stored tiny fallback audio', { cachePrefix, fallbackPath });
+      return fallbackPath;
     }
 
     // 继续使用Azure Speech for longer text

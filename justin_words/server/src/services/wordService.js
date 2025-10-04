@@ -79,10 +79,20 @@ function removeFileIfExists(filePath) {
 async function ensureWordPronunciation(word, { force = false } = {}) {
   const existingPath = resolveAudioPath(word.audio_url);
   if (!force && existingPath && fs.existsSync(existingPath)) {
+    console.info('[wordService] reuse cached word pronunciation', {
+      wordId: word.id,
+      lemma: word.lemma,
+      filePath: existingPath
+    });
     return { filePath: existingPath, publicUrl: word.audio_url };
   }
 
   if (force && existingPath) {
+    console.info('[wordService] removing stale word pronunciation', {
+      wordId: word.id,
+      lemma: word.lemma,
+      filePath: existingPath
+    });
     removeFileIfExists(existingPath);
   }
 
@@ -98,7 +108,23 @@ async function ensureTextToSpeech({ wordId, text, prefix, existingUrl, force = f
   if (!text) return null;
   ensureDir(audioDir);
   const existingPath = resolveAudioPath(existingUrl);
+  if (!force && existingPath && fs.existsSync(existingPath)) {
+    console.info('[wordService] reuse cached text-to-speech audio', {
+      wordId,
+      prefix,
+      filePath: existingPath
+    });
+    return {
+      filePath: existingPath,
+      publicUrl: existingUrl || toPublicUrl(existingPath)
+    };
+  }
   if (force && existingPath) {
+    console.info('[wordService] removing stale text-to-speech audio', {
+      wordId,
+      prefix,
+      filePath: existingPath
+    });
     removeFileIfExists(existingPath);
   }
   const filePath = await synthesizeSpeech({ text, cachePrefix: `${prefix}-${wordId}` });

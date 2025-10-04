@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "node --watch src/index.js",
+    "dev:log": "node --watch src/index.js 2>&1 | tee server.log",
     "start": "NODE_ENV=production node src/index.js",
     "lint": "eslint \"src/**/*.js\"",
     "migrate": "node src/db/run-migrations.js",
