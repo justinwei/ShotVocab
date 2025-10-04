@@ -55,9 +55,9 @@ export function scheduleInitialReview({ wordId, userId, now = new Date() }) {
   const intervalMinutes = 10; // first relearn check in 10 minutes
   const nextDueAt = nextDueFromInterval(intervalMinutes, now);
   const info = db.prepare(`
-    INSERT INTO reviews(word_id, scheduled_at, interval, easiness_factor, next_due_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(wordId, now.toISOString(), intervalMinutes, 2.5, nextDueAt.toISOString());
+    INSERT INTO reviews(word_id, user_id, scheduled_at, interval, easiness_factor, next_due_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(wordId, userId, now.toISOString(), intervalMinutes, 2.5, nextDueAt.toISOString());
 
   incrementDailyStats({ userId, day: now.toISOString().slice(0, 10), newWordsDelta: 1 });
   return { reviewId: info.lastInsertRowid, nextDueAt: nextDueAt.toISOString() };
