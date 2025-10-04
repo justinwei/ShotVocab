@@ -9,8 +9,15 @@ const app = createApp(App);
 const pinia = createPinia();
 app.use(pinia);
 
+// 异步初始化认证状态
 const auth = useAuthStore(pinia);
-await auth.initialize();
+auth.initialize().then(() => {
+  app.use(router);
+  app.mount('#app');
+}).catch((err) => {
+  console.error('Failed to initialize auth:', err);
+  // 即使初始化失败也要挂载应用
+  app.use(router);
+  app.mount('#app');
+});
 
-app.use(router);
-app.mount('#app');
