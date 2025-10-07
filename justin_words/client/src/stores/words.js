@@ -152,6 +152,7 @@ export const useWordsStore = defineStore('words', {
       if (!selected.length) throw new Error('至少选择一个单词');
       this.uploading = true;
       this.error = null;
+      this.lastCreated = [];
       this.uploadProgress = {
         items: selectedItems.map((item, index) => ({
           lemma: item.lemma,
@@ -173,6 +174,7 @@ export const useWordsStore = defineStore('words', {
           const createdBatch = Array.isArray(data.words) ? data.words : [];
           if (createdBatch.length) {
             allCreated.push(...createdBatch);
+            this.lastCreated = [...this.lastCreated, ...createdBatch];
             this.upsertAllWords(createdBatch);
             this.updateProgressStatusesByLemma(createdBatch, 'done');
           } else {
@@ -188,7 +190,6 @@ export const useWordsStore = defineStore('words', {
           }
         }
 
-        this.lastCreated = allCreated;
         this.setProgressStatus('done');
         this.resetImagePreview();
         return allCreated;
