@@ -140,16 +140,25 @@ t.test('ingestWordFromImage processes uploaded image end-to-end', async (t) => {
   t.match(metadata.zh_example, /示例|包含/g, 'chinese example stored');
 
   const listed = listWordsWithMetadata({ userId: user.id });
-  t.equal(listed.length, 1, 'list API returns one word');
-  t.equal(listed[0].lemma, 'example', 'list entry lemma matches');
-  t.match(listed[0].enDefinition, /example/i, 'list entry has english definition');
-  t.equal(listed[0].audioUrl, word.audioUrl, 'list entry exposes audio url');
+  t.equal(listed.total, 1, 'list API reports total');
+  t.equal(listed.words.length, 1, 'list API returns one word');
+  t.equal(listed.words[0].lemma, 'example', 'list entry lemma matches');
+  t.match(listed.words[0].enDefinition, /example/i, 'list entry has english definition');
+  t.equal(listed.words[0].audioUrl, word.audioUrl, 'list entry exposes audio url');
 
   const manualResult = await ingestWordsManually({ userId: user.id, lemmas: ['sample', 'sample', 'test'] });
   t.equal(manualResult.length, 2, 'manual ingest handles duplicates and multi-word input');
-  const manualList = listWordsWithMetadata({ userId: user.id, limit: 10 });
-  t.ok(manualList.find((entry) => entry.lemma === 'sample'), 'manual word persisted');
-  t.ok(manualList.find((entry) => entry.lemma === 'test'), 'second manual word persisted');
+  const manualList = listWordsWithMetadata({ userId: user.id, pageSize: 10 });
+  t.ok(manualList.words.find((entry) => entry.lemma === 'sample'), 'manual word persisted');
+  t.ok(manualList.words.find((entry) => entry.lemma === 'test'), 'second manual word persisted');
+
+  const searchList = listWordsWithMetadata({ userId: user.id, search: 'sam' });
+  t.equal(searchList.total, 1, 'search narrows total count');
+  t.equal(searchList.words[0].lemma, 'sample', 'search result matches lemma');
+
+  const paged = listWordsWithMetadata({ userId: user.id, page: 2, pageSize: 1 });
+  t.equal(paged.words.length, 1, 'pagination returns limited results');
+  t.ok(paged.total >= 3, 'pagination exposes total count across pages');
 
   const preview = await createImagePreview({
     userId: user.id,

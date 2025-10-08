@@ -9,9 +9,39 @@
 
     <p class="subtitle">浏览已导入的所有单词，点击查看中英文释义与例句</p>
 
+    <form class="library__search" @submit.prevent="handleSearch">
+      <input
+        type="search"
+        v-model="searchTerm"
+        placeholder="输入单词查询"
+        autocomplete="off"
+        :disabled="words.loadingAll"
+        aria-label="查询单词"
+      />
+      <button type="submit" :disabled="words.loadingAll">查询</button>
+      <button
+        v-if="words.searchQuery"
+        type="button"
+        class="ghost"
+        @click="clearSearch"
+        :disabled="words.loadingAll"
+      >
+        清除
+      </button>
+    </form>
+
+    <div v-if="!words.loadingAll && totalWords" class="library__summary">
+      共 {{ totalWords }} 个单词 · 每页 {{ pagination.pageSize }} 个 · 当前第 {{ pagination.page }} 页
+    </div>
+
     <div v-if="words.error" class="state state--error">{{ words.error }}</div>
     <div v-else-if="words.loadingAll" class="state">正在加载...</div>
-    <div v-else-if="!words.allWords.length" class="state">还没有单词，可在“录入”页上传图片或手动添加。</div>
+    <div v-else-if="!words.allWords.length && words.searchQuery" class="state">
+      未找到匹配 “{{ words.searchQuery }}” 的单词。
+    </div>
+    <div v-else-if="!words.allWords.length" class="state">
+      还没有单词，可在“录入”页上传图片或手动添加。
+    </div>
 
     <ul v-else class="word-list">
       <li v-for="word in words.allWords" :key="word.id || word.lemma">
@@ -77,11 +107,19 @@
         </details>
       </li>
     </ul>
+
+    <div v-if="shouldShowPagination && words.allWords.length" class="library__pagination">
+      <button type="button" @click="goToPrev" :disabled="!canGoPrev || words.loadingAll">上一页</button>
+      <span class="library__pagination-info">
+        第 {{ pagination.page }} / {{ totalPages || 1 }} 页
+      </span>
+      <button type="button" @click="goToNext" :disabled="!canGoNext || words.loadingAll">下一页</button>
+    </div>
   </section>
 </template>
 
 <script setup>
-import { onMounted } from 'vue';
+import { onMounted, ref, computed, watch } from 'vue';
 import axios from 'axios';
 import { useWordsStore } from '../stores/words.js';
 
@@ -90,17 +128,92 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 const words = useWordsStore();
 const audioCache = new Map();
+const searchTerm = ref('');
+const pagination = computed(() => words.allWordsPagination);
+const totalPages = computed(() => {
+  const declared = Number.isFinite(Number(pagination.value.totalPages))
+    ? Number(pagination.value.totalPages)
+    : null;
+  if (declared !== null && declared >= 0) {
+    return declared;
+  }
+  const total = pagination.value.total || 0;
+  const size = pagination.value.pageSize || 1;
+  return total > 0 ? Math.ceil(total / size) : 0;
+});
+const totalWords = computed(() => pagination.value.total || 0);
+const canGoPrev = computed(() => (pagination.value.page || 1) > 1);
+const canGoNext = computed(() => {
+  if (pagination.value.hasMore) return true;
+  const pages = totalPages.value;
+  if (!pages) return false;
+  return (pagination.value.page || 1) < pages;
+});
+const shouldShowPagination = computed(() => {
+  return totalWords.value > (pagination.value.pageSize || 1) || canGoPrev.value || canGoNext.value;
+});
+
+watch(
+  () => words.searchQuery,
+  (value) => {
+    searchTerm.value = value || '';
+  },
+  { immediate: true }
+);
 
 onMounted(() => {
-  if (!words.allWords.length) {
-    words.fetchAllWords().catch((error) => {
+  if (!words.allWords.length || !totalWords.value) {
+    const initialPage = pagination.value.page || 1;
+    words.fetchAllWords({ page: initialPage }).catch((error) => {
       console.error(error);
     });
   }
 });
 
+function handleSearch() {
+  words
+    .fetchAllWords({ query: searchTerm.value, page: 1 })
+    .catch((error) => {
+      console.error(error);
+    });
+}
+
+function clearSearch() {
+  if (!words.searchQuery && !searchTerm.value) return;
+  searchTerm.value = '';
+  words
+    .fetchAllWords({ query: '', page: 1 })
+    .catch((error) => {
+      console.error(error);
+    });
+}
+
+function goToPage(page) {
+  const safePage = Math.max(1, page);
+  const pageLimit = totalPages.value;
+  if (pageLimit && safePage > pageLimit && !pagination.value.hasMore) {
+    return;
+  }
+  words
+    .fetchAllWords({ page: safePage })
+    .catch((error) => {
+      console.error(error);
+    });
+}
+
+function goToPrev() {
+  if (!canGoPrev.value || words.loadingAll) return;
+  goToPage((pagination.value.page || 1) - 1);
+}
+
+function goToNext() {
+  if (!canGoNext.value || words.loadingAll) return;
+  goToPage((pagination.value.page || 1) + 1);
+}
+
 function refresh() {
-  words.fetchAllWords().catch((error) => {
+  const targetPage = pagination.value.page || 1;
+  words.fetchAllWords({ page: targetPage }).catch((error) => {
     console.error(error);
   });
 }
@@ -214,6 +327,55 @@ function fallbackSpeech(text) {
 .subtitle {
   margin: 0;
   color: #64748b;
+}
+
+.library__search {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.library__search input {
+  flex: 1;
+  min-width: 220px;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #cbd5f5;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.library__search input:focus {
+  border-color: #94a3b8;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.2);
+  outline: none;
+}
+
+.library__search input:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+}
+
+.library__search button[type='submit'] {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.library__search button[type='submit']:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.library__summary {
+  font-size: 0.9rem;
+  color: #64748b;
+  margin-top: -0.25rem;
 }
 
 .state {
@@ -330,6 +492,33 @@ function fallbackSpeech(text) {
 
 .inline-audio:disabled {
   opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.library__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.library__pagination-info {
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.library__pagination button {
+  background: #f1f5f9;
+  border: 1px solid #cbd5f5;
+  border-radius: 999px;
+  padding: 0.45rem 1.2rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.library__pagination button:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
 }
 

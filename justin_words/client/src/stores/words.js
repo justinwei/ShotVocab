@@ -25,6 +25,14 @@ export const useWordsStore = defineStore('words', {
     uploading: false,
     error: null,
     allWords: [],
+    searchQuery: '',
+    allWordsPagination: {
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      totalPages: 0,
+      hasMore: false
+    },
     loadingAll: false,
     uploadProgress: {
       items: [],
@@ -254,12 +262,64 @@ export const useWordsStore = defineStore('words', {
       }
     },
 
-    async fetchAllWords(limit = 500) {
+    async fetchAllWords(options = {}) {
+      let paramsOptions = options;
+      if (typeof options === 'number') {
+        paramsOptions = { pageSize: options };
+      }
+      const { page, pageSize, query } = paramsOptions || {};
+      const trimmedQuery =
+        typeof query === 'string' ? query.trim() : typeof this.searchQuery === 'string' ? this.searchQuery : '';
+      const normalizedQuery = trimmedQuery || '';
+      const queryChanged = normalizedQuery !== (this.searchQuery || '');
+      const nextPageSize = Number.isFinite(Number(pageSize))
+        ? Number(pageSize)
+        : this.allWordsPagination.pageSize || 20;
+      let nextPage = Number.isFinite(Number(page)) ? Number(page) : this.allWordsPagination.page || 1;
+      if (queryChanged && !Number.isFinite(Number(page))) {
+        nextPage = 1;
+      }
+
       this.loadingAll = true;
       this.error = null;
       try {
-        const { data } = await axios.get(`${API_BASE}/api/words`, { params: { limit } });
+        this.searchQuery = normalizedQuery;
+        const params = {
+          page: nextPage,
+          pageSize: nextPageSize
+        };
+        if (this.searchQuery) {
+          params.query = this.searchQuery;
+        }
+
+        const { data } = await axios.get(`${API_BASE}/api/words`, { params });
         this.allWords = Array.isArray(data.words) ? data.words : [];
+        const pagination = data.pagination || {};
+        const resolvedPage = Number.isFinite(Number(pagination.page)) ? Number(pagination.page) : nextPage;
+        const resolvedPageSize = Number.isFinite(Number(pagination.pageSize))
+          ? Number(pagination.pageSize)
+          : nextPageSize;
+        const total = Number.isFinite(Number(pagination.total))
+          ? Number(pagination.total)
+          : this.allWords.length;
+        const computedTotalPages =
+          Number.isFinite(Number(pagination.totalPages)) && Number(pagination.totalPages) >= 0
+            ? Number(pagination.totalPages)
+            : total > 0
+              ? Math.ceil(total / resolvedPageSize)
+              : 0;
+        const hasMore =
+          typeof pagination.hasMore === 'boolean'
+            ? pagination.hasMore
+            : resolvedPage < computedTotalPages;
+
+        this.allWordsPagination = {
+          page: resolvedPage,
+          pageSize: resolvedPageSize,
+          total,
+          totalPages: computedTotalPages,
+          hasMore
+        };
         return this.allWords;
       } catch (error) {
         this.error = error.response?.data?.error || error.message;

@@ -19,9 +19,27 @@ const router = Router();
 
 router.get('/', (req, res, next) => {
   try {
-    const limit = Number(req.query.limit || 500);
-    const words = listWordsWithMetadata({ userId: req.user.id, limit });
-    res.json({ words });
+    const limit = req.query.limit ? Number(req.query.limit) : null;
+    const page = req.query.page ? Number(req.query.page) : 1;
+    const pageSize = limit || Number(req.query.pageSize) || 50;
+    const search = req.query.query || req.query.search || '';
+    const result = listWordsWithMetadata({
+      userId: req.user.id,
+      page,
+      pageSize,
+      search
+    });
+    const totalPages = result.total > 0 ? Math.ceil(result.total / result.pageSize) : 0;
+    res.json({
+      words: result.words,
+      pagination: {
+        page: result.page,
+        pageSize: result.pageSize,
+        total: result.total,
+        totalPages,
+        hasMore: result.page * result.pageSize < result.total
+      }
+    });
   } catch (error) {
     next(error);
   }

@@ -471,9 +471,38 @@ export function getWordWithMetadata(wordId, userId) {
   `).get(wordId, userId);
 }
 
-export function listWordsWithMetadata({ userId, limit = 500 }) {
+export function listWordsWithMetadata({
+  userId,
+  page = 1,
+  pageSize = 50,
+  search = ''
+}) {
   const db = getDb();
-  return db.prepare(`
+  const normalizedPage = Number.isFinite(Number(page)) ? Number(page) : 1;
+  const normalizedSize = Number.isFinite(Number(pageSize)) ? Number(pageSize) : 50;
+  const boundedPage = normalizedPage > 0 ? Math.floor(normalizedPage) : 1;
+  const boundedSize = Math.min(Math.max(Math.floor(normalizedSize), 1), 200);
+  const offset = (boundedPage - 1) * boundedSize;
+  const normalizedSearch = typeof search === 'string' ? search.trim().toLowerCase() : '';
+  const whereClauses = ['w.user_id = ?'];
+  const params = [userId];
+  if (normalizedSearch) {
+    const escaped = normalizedSearch.replace(/([%_\\])/g, '\\$1');
+    whereClauses.push('LOWER(w.lemma) LIKE ? ESCAPE \'\\\'');
+    params.push(`%${escaped}%`);
+  }
+  const whereSql = whereClauses.join(' AND ');
+
+  const totalRow = db
+    .prepare(`
+      SELECT COUNT(*) AS count
+      FROM words w
+      WHERE ${whereSql}
+    `)
+    .get(...params);
+  const total = totalRow?.count ?? 0;
+
+  const words = db.prepare(`
     SELECT w.id, w.lemma, w.audio_url AS audioUrl, w.image_path AS imagePath,
            w.created_at AS createdAt,
            m.en_definition AS enDefinition, m.en_example AS enExample,
@@ -483,10 +512,17 @@ export function listWordsWithMetadata({ userId, limit = 500 }) {
            m.gemini_model AS geminiModel
     FROM words w
     LEFT JOIN word_metadata m ON m.word_id = w.id
-    WHERE w.user_id = ?
+    WHERE ${whereSql}
     ORDER BY w.created_at DESC
-    LIMIT ?
-  `).all(userId, limit);
+    LIMIT ? OFFSET ?
+  `).all(...params, boundedSize, offset);
+
+  return {
+    words,
+    total,
+    page: boundedPage,
+    pageSize: boundedSize
+  };
 }
 
 export async function ensureWordAudioUrl(wordId, userId) {
